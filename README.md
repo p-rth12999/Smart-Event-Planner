@@ -31,5 +31,4 @@ Install Python dependencies before running the program:
 
 # MY EXPERIENCES(CHALLENGES+EXPERIENCE)
 
-FIRST OF ALL I WAS OVERWHELMED BY LOOKING AT THE PROBLEM STATEMENT IT WAS VERY UNORTHODOX FOR ME TO DO SOMETHING OUT OF JUST SOLVING GIVEN QUESTIONS(LEETCODE)
-OF COURSE I TOOK THE HELP OF AI , I IMPLEMENTED THIS PROJECT IN PYTHON AS FILE HANDLING OULD BE EASIER IN IT (FOR EXCEL FILES) I WROTE THE BASIC CODE FOR ADDING THE CLI AND THE FUNCTIONS FOR ADDING EVENTS,SEARCHING EVENTS ,ETC. FOR THE CONFLICT OF TIME FUNCTIONS AND SENDING EMAILS TO ATTENDEES I USED AI AS I HAD NO IDEA TO DO IT ,AS OF NOW I HAVE ALMOST UNDERSTOOD WHAT WAS DONE IN THE PROJECT . IT WAS A NICE EXPERIENCE FOR ME TO BUILD SUCH PROJECT
+Honestly, at first I was pretty overwhelmed when I saw the problem statement. It felt so different from just solving LeetCode problems. I did take some help from AI — especially since I decided to implement the project in Python because file handling (like with Excel) is easier there. I wrote the basic code for the CLI, adding events, searching events, etc. For the trickier parts, like handling time conflicts and sending emails to attendees, I used AI since I had no clue how to do that. But now I’ve almost fully understood what was done in the project. Overall, it was a really nice experience building something like this
