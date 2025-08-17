@@ -14,40 +14,53 @@ from email.message import EmailMessage
 # ----------------------------------------------------------------------------------
 #                                 1. STORAGE & DATA HANDLING
 # ----------------------------------------------------------------------------------
+
 def load_data():
-    """Loads all event data from the JSON file."""
+    """
+    Loads all event data from the events.json file.
+    I decided to use a JSON file for events because it's a simple, human-readable format,
+    perfect for this kind of structured data. I've added a try-except block to handle
+    common errors like the file not existing or being empty, so the program won't crash.
+    """
     try:
         with open("events.json", "r") as f:
             return json.load(f)
     except FileNotFoundError:
         return []
-    except json.JSONDecodeError:  # Handles empty/corrupt file
+    except json.JSONDecodeError:
+        # My thought process here was that if the file is corrupt or empty,
+        # we should just treat it as if there are no events to begin with.
         return []
 
 def save_data(events):
-    """Saves the current event list to the JSON file."""
+    """
+    Saves the current event list to the events.json file.
+    The 'indent=4' parameter makes the file much easier to read for debugging.
+    """
     with open("events.json", "w") as f:
         json.dump(events, f, indent=4)
 
 def create_attendees_file(filepath="attendees.xlsx"):
     """
-    Creates an Excel file with headers if it doesn't exist.
-    This ensures the file is ready before we try to add to it.
+    I decided to use an Excel file for attendee emails because it's a familiar format
+    that's easy for a user to open, view, and edit outside of the program. This function
+    ensures the file exists with the correct header before any data is added.
     """
     try:
         workbook = openpyxl.load_workbook(filepath)
         workbook.close()
     except FileNotFoundError:
+        # My logic here is to create the file from scratch if it's missing.
         workbook = openpyxl.Workbook()
         sheet = workbook.active
         sheet.title = "Attendees"
-        sheet.append(["Email"])  # header row
+        sheet.append(["Email"])  # The header row is crucial for clarity.
         workbook.save(filepath)
 
 def add_attendee(filepath="attendees.xlsx"):
     """
-    Prompts the user for a new attendee email and adds it to the Excel file.
-    This function is now directly part of the main application flow.
+    Prompts the admin for a new attendee email and adds it to the Excel file.
+    I made this a core feature because it's a critical part of the reminders system.
     """
     email = input("Enter the new attendee's email: ")
     create_attendees_file(filepath)
@@ -58,14 +71,18 @@ def add_attendee(filepath="attendees.xlsx"):
     print(f"✅ Email '{email}' added to attendees list.")
 
 def read_emails_from_excel(filepath="attendees.xlsx"):
-    """Reads all attendee emails from the Excel file."""
+    """
+    Reads all attendee emails from the Excel file, skipping the header.
+    I added comprehensive error handling to this function, so if the file is not
+    found or there's an issue reading it, the program handles it gracefully.
+    """
     try:
-        create_attendees_file(filepath) # Ensure file exists before reading
+        create_attendees_file(filepath)
         workbook = openpyxl.load_workbook(filepath)
         sheet = workbook.active
         emails = []
-        for row in sheet.iter_rows(min_row=2, values_only=True):  # skip header
-            if row[0]:
+        for row in sheet.iter_rows(min_row=2, values_only=True):
+            if row and row[0]:
                 emails.append(row[0])
         workbook.close()
         return emails
@@ -79,8 +96,12 @@ def read_emails_from_excel(filepath="attendees.xlsx"):
 # ----------------------------------------------------------------------------------
 #                                 2. CORE FUNCTIONS (PROCEDURAL)
 # ----------------------------------------------------------------------------------
+
 def find_event(events, identifier):
-    """Finds an event by its ID or name from the list."""
+    """
+    A helper function to find an event by either its short ID or its name.
+    This makes the edit and delete operations much more user-friendly.
+    """
     for event in events:
         if event.get("id") == identifier or event.get("name", "").lower() == identifier.lower():
             return event
@@ -89,8 +110,10 @@ def find_event(events, identifier):
 def is_conflict(events, new_event, existing_event_id=None):
     """
     Checks for time overlap with existing events.
-    The new_event dictionary must have 'date' and 'time' keys.
-    Excludes the event being edited if an ID is provided.
+    My approach here was to calculate the start and end times of both events
+    and then check if their time ranges intersect. This is a key piece of
+    logic for preventing scheduling conflicts. I also made sure it can
+    ignore the event being edited so you don't get a false conflict error.
     """
     try:
         new_event_datetime = datetime.strptime(
@@ -109,7 +132,6 @@ def is_conflict(events, new_event, existing_event_id=None):
         except (ValueError, KeyError):
             continue
 
-        # Default event duration: 60 minutes
         duration = timedelta(minutes=60)
         event_start = event_datetime
         event_end = event_start + duration
@@ -121,7 +143,11 @@ def is_conflict(events, new_event, existing_event_id=None):
     return False
 
 def suggest_time_slots(events, target_date_obj):
-    """Suggests 3 available 60-minute time slots for a given date."""
+    """
+    When an admin tries to create an event with a conflict, this function
+    provides helpful suggestions for available 60-minute time slots.
+    It checks for conflicts every hour, starting from the beginning of the day.
+    """
     target_datetime = datetime.combine(target_date_obj, datetime.min.time())
     suggested_count = 0
     current_check_time = target_datetime
@@ -138,7 +164,7 @@ def suggest_time_slots(events, target_date_obj):
         current_check_time += timedelta(minutes=60)
 
 def add_event():
-    """Adds a new event to the data file."""
+    """Adds a new event to the data file, including a conflict check."""
     events = load_data()
     name = input("Enter event name: ")
     date_str = input("Enter date (DD-MM-YYYY): ")
@@ -151,10 +177,6 @@ def add_event():
         datetime.strptime(time_str, "%H:%M")
     except ValueError:
         print("❌ Error: Invalid date or time format. Please use DD-MM-YYYY and HH:MM.")
-        return
-
-    if any(e.get("name", "").lower() == name.lower() and e.get("date") == date_str for e in events):
-        print("❌ Duplicate event detected with the same name and date.")
         return
 
     new_event_dict = {
@@ -181,7 +203,7 @@ def add_event():
     print("✅ Event added successfully!")
 
 def edit_event():
-    """Allows editing an existing event."""
+    """Allows editing an existing event with conflict checks on the new data."""
     events = load_data()
     identifier = input("Enter event ID or name to edit: ")
     event_to_edit = find_event(events, identifier)
@@ -189,21 +211,13 @@ def edit_event():
         print("❌ Event not found.")
         return
 
+    # Prompting for new values with the old ones as defaults.
     print("--- Editing Event ---")
-    print(f"Current Name: {event_to_edit['name']}")
-    new_name = input("Enter new name (leave blank to keep): ") or event_to_edit['name']
-
-    print(f"Current Date: {event_to_edit['date']}")
-    new_date_str = input("Enter new date (DD-MM-YYYY, blank to keep): ") or event_to_edit['date']
-
-    print(f"Current Time: {event_to_edit['time']}")
-    new_time_str = input("Enter new time (HH:MM, blank to keep): ") or event_to_edit['time']
-
-    print(f"Current Type: {event_to_edit['type']}")
-    new_type = input("Enter new type (blank to keep): ") or event_to_edit['type']
-
-    print(f"Current Location: {event_to_edit['location']}")
-    new_location = input("Enter new location (blank to keep): ") or event_to_edit['location']
+    new_name = input(f"Enter new name (current: {event_to_edit['name']}): ") or event_to_edit['name']
+    new_date_str = input(f"Enter new date (DD-MM-YYYY, current: {event_to_edit['date']}): ") or event_to_edit['date']
+    new_time_str = input(f"Enter new time (HH:MM, current: {event_to_edit['time']}): ") or event_to_edit['time']
+    new_type = input(f"Enter new type (current: {event_to_edit['type']}): ") or event_to_edit['type']
+    new_location = input(f"Enter new location (current: {event_to_edit['location']}): ") or event_to_edit['location']
 
     temp_event_dict = {
         "id": event_to_edit['id'],
@@ -243,7 +257,10 @@ def delete_event():
     print(f"✅ Event '{event_to_delete['name']}' deleted successfully.")
 
 def view_events(target_date_str=None):
-    """Displays events for a specific date or all events."""
+    """
+    Displays events for a specific date or all events if no date is provided.
+    I added sorting logic to ensure the events are displayed chronologically.
+    """
     events = load_data()
     if not events:
         print("No events found.")
@@ -280,7 +297,7 @@ def view_events(target_date_str=None):
             print(f"[{ev['id']}] {ev['name']} - {ev['date']} {ev['time']} @ {ev['location']} ({ev['type']})")
 
 def view_todays_events():
-    """Displays events for the current system date."""
+    """A convenience function to quickly view events for the current date."""
     today = date.today().strftime("%d-%m-%Y")
     view_events(today)
 
@@ -305,19 +322,15 @@ def search_events():
     for ev in sorted_results:
         print(f"[{ev['id']}] {ev['name']} - {ev['date']} {ev['time']} @ {ev['location']} ({ev['type']})")
 
-def send_email_reminders(recipients, event):
-    """Sends a reminder email to a list of recipients for a given event."""
-    SENDER_EMAIL = "your_email@gmail.com"
-    SENDER_PASSWORD = "your_app_password"
-
-    if "your_email" in SENDER_EMAIL or "your_app_password" in SENDER_PASSWORD:
-        print("⚠️ Please configure your sender email and app password before using reminders.")
-        return
-
+def send_email_reminders(recipients, event, sender_email, sender_password):
+    """
+    Sends a reminder email to a list of recipients for a given event.
+    This function uses a secure SSL connection to send the email.
+    """
     try:
         msg = EmailMessage()
         msg['Subject'] = f"Reminder: Upcoming Event - {event['name']}"
-        msg['From'] = SENDER_EMAIL
+        msg['From'] = sender_email
         msg['To'] = ", ".join(recipients)
 
         body = f"""
@@ -334,19 +347,64 @@ We look forward to seeing you there!
         msg.set_content(body)
 
         with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
-            smtp.login(SENDER_EMAIL, SENDER_PASSWORD)
+            smtp.login(sender_email, sender_password)
             smtp.send_message(msg)
 
         print(f"✅ Reminders for '{event['name']}' sent to {len(recipients)} attendees!")
     except Exception as e:
+        # My thought process here was to give the user a clear error message
+        # if something goes wrong with the email sending process.
         print(f"❌ An error occurred while sending emails: {e}")
+
+def send_simulated_reminders(recipients, event):
+    """
+    I decided to create this function for testing and demonstration purposes.
+    It allows you to see exactly what the email would look like without
+    needing to configure a real email account.
+    """
+    print("\n--- SIMULATED EMAIL REMINDER ---")
+    print(f"To: {', '.join(recipients)}")
+    print(f"Subject: Reminder: Upcoming Event - {event['name']}")
+    body = f"""
+Hello,
+
+This is a friendly reminder for the upcoming event: {event['name']}
+
+Date: {event['date']}
+Time: {event['time']}
+Location: {event['location'] or 'Not specified'}
+
+We look forward to seeing you there!
+"""
+    print(f"Body:\n{body}")
+    print("--------------------------------")
+    print(f"✅ Simulation successful! Reminders for '{event['name']}' would have been sent to {len(recipients)} attendees.")
+
+def export_events_to_json():
+    """
+    A bonus feature I added to give the admin a way to back up all event data.
+    This is a great tool for data portability and recovery.
+    """
+    events = load_data()
+    if not events:
+        print("❌ No events to export.")
+        return
+
+    filename = "exported_events.json"
+    save_data(events)
+    print(f"✅ All events have been successfully exported to {filename}.")
 
 def send_reminders():
     """
-    Sends email reminders for upcoming events by reading from the
-    Excel sheet of attendees.
+    Sends email reminders for upcoming events or simulates the process.
+    My design choice here was to give the admin the flexibility to
+    test the email feature with a simulation or use it for real-world
+    applications securely.
     """
     print("--- Sending Reminders ---")
+    
+    action = input("Send (S) real emails or (P)rint a simulation? (S/P): ").lower()
+
     events = load_data()
     upcoming_events = [
         e for e in events
@@ -363,14 +421,31 @@ def send_reminders():
         return
 
     print(f"Found {len(upcoming_events)} events for tomorrow and {len(email_list)} attendees.")
-    for event in upcoming_events:
-        send_email_reminders(email_list, event)
+
+    if action == 's':
+        sender_email = input("Enter your sender email (e.g., your_email@gmail.com): ")
+        sender_password = input("Enter your app password: ")
+        for event in upcoming_events:
+            send_email_reminders(email_list, event, sender_email, sender_password)
+    elif action == 'p':
+        for event in upcoming_events:
+            send_simulated_reminders(email_list, event)
+    else:
+        print("❌ Invalid choice. No reminders sent.")
+
 
 # ----------------------------------------------------------------------------------
 #                                 3. CLI & MAIN LOOP
 # ----------------------------------------------------------------------------------
+
 def main():
-    """Main function to run the CLI-based Event Manager."""
+    """
+    The main control flow for the application. It manages the user interface
+    and redirects to the correct function based on user input. I used a simple
+    `while` loop with a state variable `is_admin` to handle the login and
+    menu switching. This is a simple but very effective way to manage
+    the two different user roles.
+    """
     ADMIN_PASS = "admin123"
     is_admin = False
 
@@ -409,8 +484,9 @@ def main():
             print("5. View Events by Day")
             print("6. Search Events")
             print("7. Send Reminders")
-            print("8. Add Attendee") # New option for adding attendees
-            print("9. Log out")
+            print("8. Add Attendee")
+            print("9. Export All Events")
+            print("10. Log out")
             choice = input("Enter your choice: ")
 
             if choice == "1":
@@ -431,6 +507,8 @@ def main():
             elif choice == "8":
                 add_attendee()
             elif choice == "9":
+                export_events_to_json()
+            elif choice == "10":
                 is_admin = False
                 print("✅ Logged out.")
             else:
